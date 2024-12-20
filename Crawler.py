@@ -1,5 +1,4 @@
 import time
-from turtledemo.sorting_animate import start_isort
 from urllib.parse import urljoin, urlparse
 import requests
 from bs4 import BeautifulSoup
@@ -141,12 +140,20 @@ class Crawler:
         self.conclude_for_url()
 
     def crawl(self):
+        not_allowed_href = self.get_robots_txt_urls()
+
         self.crawl_one(self.currentURL)
 
         db = JsonDatabase(self.database_data)
         links = db.get_record(self.currentURL)["href"]
 
-        for link in links:
+        disallowed_links = []
+        for l in not_allowed_href:
+            disallowed_links.append(str(self.get_base_url() + l))
+
+        allowed_links = [l for l in links if l not in disallowed_links]
+
+        for link in allowed_links:
             print(f"--------------- Analyse : {link} ---------------")
             self.crawl_one(link)
             time.sleep(2)
