@@ -1,17 +1,45 @@
-import signal
-import sys
-from Crawler import Crawler
-import Indexer
+from flask import Flask, request, jsonify, render_template
+from JsonDatabase import JsonDatabase
+from Pertinence import get_final_value_page
 
-def handle_interrupt(signal, frame):
-    print("\nInterruption reçue (Ctrl+C). Sauvegarde en cours...")
-    print("Données sauvegardées.")
-    sys.exit(0)
+app = Flask(__name__)
 
-signal.signal(signal.SIGINT, handle_interrupt)
+dataDB = "data.json"
+occurenceDB = "occurence.json"
 
-print("Le programme est en cours d'exécution... Appuyez sur Ctrl+C pour interrompre.")
-crawler = Crawler("https://en.wikipedia.org/wiki/List_of_file_signatures", max_iteration=10)
-crawler.crawl()
+@app.route('/')
+def home():
+    return render_template('index.html')
 
-Indexer.start_indexer()
+@app.route('/search', methods=['POST'])
+def search():
+    # Récupérer le champ 'query' du formulaire envoyé via POST
+    query = request.form.get('query')  # Utilisation correcte de 'form' pour récupérer la requête
+    if not query:
+        return jsonify({"error": "Veuillez fournir une requête de recherche."}), 400
+
+    # Charger la base de données
+    db_data = JsonDatabase(dataDB)
+    all_urls = db_data.get_all_keys()
+
+    if not all_urls:
+        return jsonify({"error": "Aucune URL indexée dans la base de données."}), 404
+
+    # Calculer la valeur finale pour chaque URL
+    results = []
+    for url in all_urls:
+        try:
+            score = get_final_value_page(url, query, dataDB, occurenceDB)
+            results.append({"url": url, "score": score})
+        except ValueError as e:
+            print(f"Erreur pour l'URL {url}: {e}")
+
+    # Trier les résultats par score descendant
+    results = sorted(results, key=lambda x: x['score'], reverse=True)
+
+    # Rendre les résultats sur la page HTML
+    return render_template('index.html', results=results)
+
+
+if __name__ == '__main__':
+    app.run(debug=True)
