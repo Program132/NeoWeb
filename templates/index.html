@@ -9,8 +9,10 @@
 <body>
     <div class="container">
         <h1>Moteur de Recherche</h1>
-        <form method="POST">
-            <input type="text" name="query" placeholder="Recherchez un mot..." required>
+        <form method="POST" action="/search">
+            <label>
+                <input type="text" name="query" placeholder="Recherchez un mot..." required>
+            </label>
             <button type="submit">Rechercher</button>
         </form>
         {% if results %}
