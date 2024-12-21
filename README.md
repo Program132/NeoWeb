@@ -1,6 +1,6 @@
 # NeoWeb
 
-[![Downloads](https://img.shields.io/github/downloads/Program132/NeoWebtotal?style=for-the-badge)](https://github.com/Program132/NeoWeb)
+[![Downloads](https://img.shields.io/github/downloads/Program132/NeoWeb/total?style=for-the-badge)](https://github.com/Program132/NeoWeb)
 [![Code size](https://img.shields.io/github/languages/code-size/Program132/NeoWeb?style=for-the-badge)](https://github.com/Program132/NeoWeb)
 [![Last Release](https://img.shields.io/github/release/Program132/NeoWeb?style=for-the-badge)](https://github.com/Program132/NeoWeb/releases)
 
