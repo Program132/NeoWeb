@@ -1,13 +1,18 @@
 # NeoWeb
 
-NeoWeb a pour but de montrer le fonctionnement d'un moteur de recherche utilisant le principe de google.
+[![Downloads](https://img.shields.io/github/downloads/Program132/NeoWebtotal?style=for-the-badge)](https://github.com/Program132/NeoWeb)
+[![Code size](https://img.shields.io/github/languages/code-size/Program132/NeoWeb?style=for-the-badge)](https://github.com/Program132/NeoWeb)
+[![Last Release](https://img.shields.io/github/release/Program132/NeoWeb?style=for-the-badge)](https://github.com/Program132/NeoWeb/releases)
+
+NeoWeb a pour but de montrer le fonctionnement d'un moteur de recherche utilisant le principe de Google.
+En réalité, la plupart des moteurs de recherches ne font pas de recherche sur le web mais dans une base de donné qui s'agrandit de jour en jour.
 Je m'inspire de la vidéo de [V2F](https://youtu.be/O3cJUR2NimI) et utilise sa vidéo comme guide, je vous conseille de la regarder pour comprendre le fonctionnement.
 
 # Structure
 
 ## JsonDatabase.py
 
-Les données sont stockés dans une grande base de donnée, vous pouvez créer la vôtre en modifiant le code en utilisant Redis ou une base de donnée SQL par exemple.
+Les données sont stockés dans une "base de donnée" au format JSON, vous pouvez créer la vôtre en modifiant le code en utilisant Redis ou une base de donnée SQL par exemple.
 
 ## Crawler.py
 
@@ -34,4 +39,17 @@ pour cela, on utilisera le [PageRank](https://fr.wikipedia.org/wiki/PageRank).
 
 ## NeoWeb.py
 
-Code python qui lance le programme pour un crawler et lance l'indexation.
+Code python qui lance l'application web en utilisant Flask.
+
+# Utilisation
+
+Je vous invite à télécharger le code source et de le mettre sur un VPS / machine local pour vous si vous souhaitez l'utiliser.
+Vous pouvez lancer plusieurs runCrawler.py et runIndexer.py, arrêter quand vous voulez.
+
+Par ailleurs, si vous rencontrez des bugs n'hésitez pas à en faire part dans la communauté dans [Issues](https://github.com/Program132/NeoWeb/issues).
+Si vous voulez voir des suggestions, vous êtes le bienvenu !
+
+# Prochaines releases
+
+J'ai pour but de mettre en place une API avec PHP, l'application web sera sûrement aussi sous PHP.
+Améliorer l'efficacité du Crawler et de l'Indexer.
