@@ -10,6 +10,7 @@ class Crawler:
         self.database_data = "data.json"
         self.database_pending = "queue.json"
         self.max_iteration = max_iteration
+        self.needToStop = False
 
     @staticmethod
     def get_page_from_url(url, timeout=5):
@@ -86,8 +87,12 @@ class Crawler:
         if not robots_txt: return []
         urls = []
         for line in robots_txt.splitlines():
+            if self.needToStop: break
+
             line = line.strip()
             if line.lower().startswith("allow") or line.lower().startswith("disallow"):
+                if self.needToStop: break
+
                 parts = line.split()
                 if len(parts) > 1:
                     urls.append(parts[1])
@@ -149,6 +154,8 @@ class Crawler:
 
         disallowed_links = []
         for l in not_allowed_href:
+            if self.needToStop: break
+
             disallowed_links.append(str(self.get_base_url() + l))
 
         allowed_links = [l for l in links if l not in disallowed_links]
@@ -156,7 +163,12 @@ class Crawler:
         iteration_limit = self.max_iteration or len(allowed_links)
 
         for i, link in enumerate(allowed_links):
+            if self.needToStop: break
+
             if i >= iteration_limit:
                 break
             print(f"--------------- Analyse : {link} ---------------")
             self.crawl_one(link)
+
+    def handle_stop_signal(self):
+        self.needToStop = True

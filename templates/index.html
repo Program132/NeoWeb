@@ -19,9 +19,15 @@
         <h2>Résultats :</h2>
         <ul>
             {% for result in results %}
-            <li><a href="{{ result.url }}">{{ result.url }}</a> - Score : {{ result.tf_idf }}</li>
+            <li>
+                <h3 style="color: black;">{{ result.title }}</h3>
+                <a href="{{ result.url }}" style="color: green;">{{ result.url }}</a>
+                <p>{{ result.excerpt }}...</p>
+            </li>
             {% endfor %}
         </ul>
+        {% else %}
+        <p>Aucun résultat trouvé.</p>
         {% endif %}
     </div>
 </body>

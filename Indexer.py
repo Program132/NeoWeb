@@ -1,38 +1,49 @@
 from JsonDatabase import JsonDatabase
 
-def add_new_word(word, occurenceDB, url):
-    db_occurence = JsonDatabase(occurenceDB)
-    db_occurence.add_record(word, {f"{url}": 1})
+class Indexer:
+    def __init__(self, data_db="data.json", occurrence_db="occurence.json"):
+        self.data_db = data_db
+        self.occurence_db = occurrence_db
+        self.db_data = JsonDatabase(data_db)
+        self.db_occurence = JsonDatabase(occurrence_db)
+        self.needToStop = False
 
-def add_occurence_word(word, occurenceDB, url):
-    db_occurence = JsonDatabase(occurenceDB)
-    existing_record_word = db_occurence.get_record(word)
+    def add_new_word(self, word, url):
+        self.db_occurence.add_record(word, {url: 1})
 
-    if not existing_record_word:
-        add_new_word(word, occurenceDB, url)
-        return
+    def add_occurrence_word(self, word, url):
+        existing_record_word = self.db_occurence.get_record(word)
 
-    if url not in existing_record_word:
-        existing_record_word[url] = 1
-        db_occurence.update_record(word, existing_record_word)
-    else:
-        current_occurence = existing_record_word[url]
-        existing_record_word[url] = current_occurence + 1
-        db_occurence.update_record(word, existing_record_word)
+        if not existing_record_word:
+            self.add_new_word(word, url)
+        else:
+            if url not in existing_record_word:
+                existing_record_word[url] = 1
+                self.db_occurence.update_record(word, existing_record_word)
+            else:
+                existing_record_word[url] += 1
+                self.db_occurence.update_record(word, existing_record_word)
 
-def start_indexer(dataDB="data.json", occurenceDB="occurence.json"):
-    db = JsonDatabase(dataDB)
-    all_urls = db.get_all_keys()
-    print(all_urls)
-    if len(all_urls) == 0: return
+    def start_indexer(self):
+        all_urls = self.db_data.get_all_keys()
+        print(f"URLs à indexer : {all_urls}")
+        if len(all_urls) == 0:
+            print("Aucune URL à indexer.")
+            return
 
-    for url in all_urls:
-        record = db.get_record(url)
-        text_page = record["text"]
-        words = text_page.split()
-        db_occurence = JsonDatabase(occurenceDB)
+        for url in all_urls:
+            if self.needToStop: break
 
-        for w in words:
-            existing_record_word = db_occurence.get_record(w)
-            if not existing_record_word: add_new_word(w, occurenceDB, url)
-            add_occurence_word(w, occurenceDB, url)
+            record = self.db_data.get_record(url)
+            text_page = record.get("text", "")
+            words = text_page.split()
+
+            for word in words:
+                if self.needToStop: break
+
+                self.add_occurrence_word(word, url)
+
+        print("Indexation terminée.")
+
+    def handle_stop_signal(self):
+        self.needToStop = True

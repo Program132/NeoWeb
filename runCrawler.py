@@ -1,6 +1,14 @@
 from Crawler import Crawler
+import signal
+import sys
 
-url = "https://fr.wikipedia.org/wiki/Wikip%C3%A9dia:Accueil_principal"
+def handle_stop_signal(signum, frame):
+    print("\nInterruption reçue. L'indexation va être arrêtée.")
+    crawler.handle_stop_signal()
 
-crawler = Crawler(start_url=url)
-crawler.crawl()
+if __name__ == '__main__':
+    url = "https://fr.wikipedia.org/"
+
+    crawler = Crawler(start_url=url)
+    signal.signal(signal.SIGINT, handle_stop_signal)
+    crawler.crawl()

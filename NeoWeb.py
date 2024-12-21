@@ -1,6 +1,7 @@
 from flask import Flask, request, jsonify, render_template
 from JsonDatabase import JsonDatabase
 from Pertinence import get_final_value_page
+from bs4 import BeautifulSoup  # Pour extraire les titres de page HTML
 
 app = Flask(__name__)
 
@@ -13,32 +14,47 @@ def home():
 
 @app.route('/search', methods=['POST'])
 def search():
-    # Récupérer le champ 'query' du formulaire envoyé via POST
-    query = request.form.get('query')  # Utilisation correcte de 'form' pour récupérer la requête
+    query = request.form.get('query')
     if not query:
         return jsonify({"error": "Veuillez fournir une requête de recherche."}), 400
 
-    # Charger la base de données
-    db_data = JsonDatabase(dataDB)
-    all_urls = db_data.get_all_keys()
+    try:
+        db_data = JsonDatabase(dataDB)
+        all_urls = db_data.get_all_keys()
 
-    if not all_urls:
-        return jsonify({"error": "Aucune URL indexée dans la base de données."}), 404
+        if not all_urls:
+            return jsonify({"error": "Aucune URL indexée dans la base de données."}), 404
 
-    # Calculer la valeur finale pour chaque URL
-    results = []
-    for url in all_urls:
-        try:
-            score = get_final_value_page(url, query, dataDB, occurenceDB)
-            results.append({"url": url, "score": score})
-        except ValueError as e:
-            print(f"Erreur pour l'URL {url}: {e}")
+        results = []
+        for url in all_urls:
+            try:
+                score = get_final_value_page(url, query, dataDB, occurenceDB)
 
-    # Trier les résultats par score descendant
-    results = sorted(results, key=lambda x: x['score'], reverse=True)
+                record = db_data.get_record(url)
+                title = extract_title(record)
+                excerpt = extract_excerpt(record.get("text", ""))
 
-    # Rendre les résultats sur la page HTML
-    return render_template('index.html', results=results)
+                results.append({"url": url, "title": title, "excerpt": excerpt, "score": score})
+            except ValueError as e:
+                print(f"Erreur pour l'URL {url}: {e}")
+
+        results = sorted(results, key=lambda x: x['score'], reverse=True)
+
+        return render_template('index.html', results=results)
+    except FileNotFoundError:
+        return jsonify({"error": "Le fichier data.json est introuvable."}), 500
+    except Exception as e:
+        print(f"Erreur inattendue : {e}")
+        return jsonify({"error": f"Erreur lors du traitement de la requête : {str(e)}"}), 500
+
+
+def extract_title(record):
+    return record["title"]
+
+
+def extract_excerpt(text_page):
+    lines = text_page.splitlines()
+    return ' '.join(lines[:3])  # Joindre les trois premières lignes
 
 
 if __name__ == '__main__':
