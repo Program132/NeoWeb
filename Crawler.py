@@ -1,4 +1,3 @@
-import time
 from urllib.parse import urljoin, urlparse
 import requests
 from bs4 import BeautifulSoup
@@ -6,10 +5,11 @@ from JsonDatabase import JsonDatabase
 
 
 class Crawler:
-    def __init__(self, start_url):
+    def __init__(self, start_url, max_iteration=None):
         self.currentURL = start_url
         self.database_data = "data.json"
         self.database_pending = "queue.json"
+        self.max_iteration = max_iteration
 
     @staticmethod
     def get_page_from_url(url, timeout=5):
@@ -153,7 +153,10 @@ class Crawler:
 
         allowed_links = [l for l in links if l not in disallowed_links]
 
-        for link in allowed_links:
+        iteration_limit = self.max_iteration or len(allowed_links)
+
+        for i, link in enumerate(allowed_links):
+            if i >= iteration_limit:
+                break
             print(f"--------------- Analyse : {link} ---------------")
             self.crawl_one(link)
-            time.sleep(2)
