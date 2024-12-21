@@ -71,3 +71,10 @@ class JsonDatabase:
         :return: Les données de l'enregistrement ou None si non trouvé.
         """
         return self.data.get(record_id, None)
+
+    def get_all_keys(self):
+        """
+        Récupère une liste de toutes les clés dans la base de données.
+        :return: Liste des clés (identifiants) dans la base de données.
+        """
+        return list(self.data.keys())
