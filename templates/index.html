@@ -1,0 +1,26 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Moteur de Recherche</title>
+    <link rel="stylesheet" href="/static/style.css">
+</head>
+<body>
+    <div class="container">
+        <h1>Moteur de Recherche</h1>
+        <form method="POST">
+            <input type="text" name="query" placeholder="Recherchez un mot..." required>
+            <button type="submit">Rechercher</button>
+        </form>
+        {% if results %}
+        <h2>Résultats :</h2>
+        <ul>
+            {% for result in results %}
+            <li><a href="{{ result.url }}">{{ result.url }}</a> - Score : {{ result.tf_idf }}</li>
+            {% endfor %}
+        </ul>
+        {% endif %}
+    </div>
+</body>
+</html>
