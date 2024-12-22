@@ -1,3 +1,4 @@
+import string
 from JsonDatabase import JsonDatabase
 
 class Indexer:
@@ -8,21 +9,30 @@ class Indexer:
         self.db_occurence = JsonDatabase(occurrence_db)
         self.needToStop = False
 
+    @staticmethod
+    def clean_word(word):
+        word = word.lower()
+        word = word.translate(str.maketrans('', '', string.punctuation))
+        return word
+
     def add_new_word(self, word, url):
-        self.db_occurence.add_record(word, {url: 1})
+        cleaned_word = self.clean_word(word)
+        self.db_occurence.add_record(cleaned_word , {url: 1})
 
     def add_occurrence_word(self, word, url):
+        cleaned_word = self.clean_word(word)
         existing_record_word = self.db_occurence.get_record(word)
 
         if not existing_record_word:
-            self.add_new_word(word, url)
+            self.add_new_word(self.clean_word(cleaned_word), url)
         else:
             if url not in existing_record_word:
                 existing_record_word[url] = 1
-                self.db_occurence.update_record(word, existing_record_word)
+                self.db_occurence.update_record(cleaned_word, existing_record_word)
             else:
                 existing_record_word[url] += 1
-                self.db_occurence.update_record(word, existing_record_word)
+                self.db_occurence.update_record(cleaned_word, existing_record_word)
+
 
     def start_indexer(self):
         all_urls = self.db_data.get_all_keys()
@@ -37,10 +47,8 @@ class Indexer:
             record = self.db_data.get_record(url)
             text_page = record.get("text", "")
             words = text_page.split()
-
             for word in words:
                 if self.needToStop: break
-
                 self.add_occurrence_word(word, url)
 
         print("Indexation terminée.")

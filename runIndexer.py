@@ -1,6 +1,5 @@
 from Indexer import Indexer
 import signal
-import sys
 
 def handle_stop_signal(signum, frame):
     print("\nInterruption reçue. L'indexation va être arrêtée.")
