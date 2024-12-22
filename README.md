@@ -4,7 +4,7 @@
 [![Code size](https://img.shields.io/github/languages/code-size/Program132/NeoWeb?style=for-the-badge)](https://github.com/Program132/NeoWeb)
 [![Last Release](https://img.shields.io/github/release/Program132/NeoWeb?style=for-the-badge)](https://github.com/Program132/NeoWeb/releases)
 
-NeoWeb a pour but de montrer le fonctionnement d'un moteur de recherche s'inspirant du principe de Google. 
+NeoWeb a pour but de montrer le fonctionnement d'un moteur de recherche s'inspirant de Google. 
 En réalité, la plupart des moteurs de recherche ne font pas de recherche sur le web, mais dans une base de données qui s'agrandit de jour en jour.
 Je m'inspire de la vidéo de [V2F](https://youtu.be/O3cJUR2NimI) et utilise sa vidéo comme guide.  Je vous conseille de la regarder pour mieux comprendre le fonctionnement.
 
