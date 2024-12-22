@@ -49,8 +49,3 @@ Vous pouvez lancer plusieurs `runCrawler.py` et `runIndexer.py` et les arrêter 
 
 Par ailleurs, si vous rencontrez des bugs, n'hésitez pas à en faire part à la communauté dans [Issues](https://github.com/Program132/NeoWeb/issues). 
 Si vous voulez soumettre des suggestions, vous êtes le bienvenu !
-
-# Prochaines Releases
-
-J'ai pour but de mettre en place une API avec PHP, et l'application web sera sûrement aussi sous PHP. 
-Améliorer l'efficacité du Crawler et de l'Indexer, utiliser une base de donnée SQL.
