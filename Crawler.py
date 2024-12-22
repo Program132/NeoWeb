@@ -1,16 +1,17 @@
-from urllib.parse import urljoin, urlparse
+import json
+from urllib.parse import urljoin, urlparse, urlunparse
 import requests
 from bs4 import BeautifulSoup
-from JsonDatabase import JsonDatabase
+from Database import DatabaseManager
 
 
 class Crawler:
-    def __init__(self, start_url, max_iteration=None):
+    def __init__(self, start_url, database="neoweb.db"):
         self.currentURL = start_url
-        self.database_data = "data.json"
-        self.database_pending = "queue.json"
-        self.max_iteration = max_iteration
         self.needToStop = False
+        self.database_path = database
+        self.links = []
+        self.db = DatabaseManager(self.database_path)
 
     @staticmethod
     def get_page_from_url(url, timeout=5):
@@ -98,77 +99,137 @@ class Crawler:
                     urls.append(parts[1])
         return urls
 
-    def add_pending_url(self):
-        db = JsonDatabase(self.database_pending)
-        existing_record = db.get_record(self.currentURL)
-        if existing_record: return
-        record_data = {"status": "pending"}
-        db.add_record(self.currentURL, record_data)
-        print(f"URL '{self.currentURL}' ajoutée à la file d'attente avec le statut 'pending' pour récupérer les URLs.")
+    @staticmethod
+    def clean_url(url):
+        parsed_url = urlparse(url)
+        cleaned_url = urlunparse((
+            parsed_url.scheme,
+            parsed_url.netloc,
+            parsed_url.path,
+            '',
+            '',
+            ''
+        ))
+        return cleaned_url
 
-    def conclude_for_url(self):
-        db = JsonDatabase(self.database_pending)
-        existing_record = db.get_record(self.currentURL)
-        if existing_record:
-            db.delete_record(self.currentURL)
-            print(f"URL '{self.currentURL}' : fini.")
+    def add_url_to_pending_table(self, url):
+        data = {
+            "url": f"{url}",
+            "status": "pending"
+        }
+        self.db.connect()
 
-    def add_data_to_db(self):
-        db = JsonDatabase(self.database_data)
-        existing_record = db.get_record(self.currentURL)
-        if existing_record: return
-        page = self.get_page_from_url(self.currentURL)
-        if page is None:
-            print(f"Impossible de récupérer les données pour l'URL '{self.currentURL}'.")
+        query = "INSERT OR IGNORE INTO pending (url, status) VALUES (?, ?)" # évite les doublons
+        self.db.execute_query(query, (url, "pending"))
+
+        self.db.close()
+        print(f"URL ajoutée à la table 'pending': {url}")
+
+    def update_url_status(self, status):
+        self.db = DatabaseManager(self.database_path)
+        self.db.connect()
+
+        query = f"UPDATE pending SET status = ? WHERE url = ?"
+        self.db.execute_query(query, (status, self.currentURL))
+
+        self.db.close()
+
+    def reload_links_from_db(self):
+        self.db.connect()
+
+        query = "SELECT url FROM pending WHERE status = 'pending' LIMIT 50"
+        result = self.db.execute_query(query)
+        print(f"URLs récupérées depuis la base de données: {result}")
+
+        self.links = [url[0] for url in result if url[0] not in self.links]
+
+        self.db.close()
+
+    def url_in_web_pages(self):
+        self.db.connect()
+        query = "SELECT 1 FROM web_pages WHERE url = ?"
+        result = self.db.execute_query(query, (self.currentURL,))
+        self.db.close()
+        return len(result) > 0
+
+    def remove_url_from_pending(self):
+        self.db.connect()
+        query = "DELETE FROM pending WHERE url = ?"
+        self.db.execute_query(query, (self.currentURL,))
+        self.db.close()
+        print(f"URL supprimée de la table 'pending': {self.currentURL}")
+
+    def crawl_current(self):
+        if len(self.links) < 5:
+            self.reload_links_from_db()
+
+        if not self.links:
+            print("Aucune URL à crawler.")
             return
+
+        if self.url_in_web_pages(): return
+
+        self.currentURL = self.links.pop(0)
+        page = self.get_page_from_url(self.currentURL)
+        if not page:
+            print(f"Impossible de récupérer la page {self.currentURL}. Passage à la suivante.")
+            self.remove_url_from_pending()
+            return
+
+        self.update_url_status("crawling")
+
+        all_hrefs = self.get_all_href_from_page(page, self.get_base_url())
+        all_hrefs_not_allowed = self.get_robots_txt_urls()
 
         title = self.get_title_from_page(page)
         subtitles = self.get_subtitles_from_page(page)
         metadata = self.get_metadata_from_page(page)
-        text_from_page = self.get_text_from_page(page)
-        links = self.get_all_href_from_page(page, self.currentURL)
+        text = self.get_text_from_page(page)
+        links_href = []
 
-        record_data = {
+        for href in all_hrefs:
+            if self.needToStop: break
+            if href not in all_hrefs_not_allowed:
+                if self.needToStop: break
+                cleaned = self.clean_url(href)
+                links_href.append(cleaned)
+                self.add_url_to_pending_table(cleaned)
+                self.reload_links_from_db()
+
+        self.update_url_status("done")
+
+        data = {
+            "url": self.currentURL,
             "title": title,
             "subtitles": subtitles,
-            "text": text_from_page,
-            "href": links,
-            "metadata": metadata
+            "metadata": json.dumps(metadata),
+            "text": text,
+            "links": links_href,
         }
-        db.add_record(self.currentURL, record_data)
-        print(f"URL '{self.currentURL}' : données sauvegardées.")
 
-    def crawl_one(self, url):
-        self.currentURL = url
-        self.add_pending_url()
-        self.add_data_to_db()
-        self.conclude_for_url()
+        for key, value in data.items():
+            if isinstance(value, list):
+                data[key] = ', '.join(value)
+
+        self.remove_url_from_pending()
+
+        self.db.connect()
+        self.db.add_entry("web_pages", data)
+        self.db.close()
 
     def crawl(self):
-        not_allowed_href = self.get_robots_txt_urls()
+        self.add_url_to_pending_table(self.currentURL)
 
-        self.crawl_one(self.currentURL)
+        self.crawl_current()
 
-        db = JsonDatabase(self.database_data)
-        links = db.get_record(self.currentURL)["href"]
-
-        disallowed_links = []
-        for l in not_allowed_href:
+        for l in self.links:
             if self.needToStop: break
-
-            disallowed_links.append(str(self.get_base_url() + l))
-
-        allowed_links = [l for l in links if l not in disallowed_links]
-
-        iteration_limit = self.max_iteration or len(allowed_links)
-
-        for i, link in enumerate(allowed_links):
-            if self.needToStop: break
-
-            if i >= iteration_limit:
-                break
-            print(f"--------------- Analyse : {link} ---------------")
-            self.crawl_one(link)
+            self.currentURL = l
+            self.crawl_current()
 
     def handle_stop_signal(self):
+        print("Arrêt du processus de crawl...")
         self.needToStop = True
+        if self.db:
+            self.db.close()
+        print("Processus arrêté proprement.")

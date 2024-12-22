@@ -1,4 +1,4 @@
-from Indexer import Indexer
+from archive.Indexer import Indexer
 import signal
 
 def handle_stop_signal(signum, frame):

@@ -1,4 +1,4 @@
-from Crawler import Crawler
+from archive.Crawler import Crawler
 import signal
 import argparse
 

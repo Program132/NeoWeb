@@ -1,5 +1,5 @@
 import math
-from JsonDatabase import JsonDatabase
+from archive.JsonDatabase import JsonDatabase
 
 def get_term_frequency(nb_occurrences, nb_mots):
     return nb_occurrences / nb_mots

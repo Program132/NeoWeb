@@ -1,5 +1,5 @@
 import string
-from JsonDatabase import JsonDatabase
+from archive.JsonDatabase import JsonDatabase
 
 class Indexer:
     def __init__(self, data_db="data.json", occurrence_db="occurence.json"):

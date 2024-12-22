@@ -162,5 +162,5 @@ cython_debug/
 data.json
 queue.json
 occurence.json
-
 archive/
+neoweb.db
