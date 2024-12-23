@@ -9,6 +9,7 @@ class DatabaseManager:
     def connect(self):
         try:
             self.connection = sqlite3.connect(self.db_path)
+            self.connection.execute("PRAGMA journal_mode=WAL")
         except sqlite3.Error as e:
             print(f"Erreur de connexion à la base de données: {e}")
             self.connection = None
