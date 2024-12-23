@@ -8,10 +8,9 @@ from bs4 import BeautifulSoup
 from urllib.parse import urljoin, urlparse
 from urllib.robotparser import RobotFileParser
 from threading import Lock
-import re
 
 class Crawler:
-    def __init__(self, start_url, database="neoweb.db"):
+    def __init__(self, currentURL=None, database="neoweb.db"):
         self.db = DatabaseManager(database)
         self.visited = set()
         self.queue = []
@@ -19,7 +18,22 @@ class Crawler:
         self.lock = Lock()
         self.robot_parsers = {}
         self.running = True
-        self.add_to_pending(start_url)
+
+        # Définir le domaine de départ
+        self.start_domain = self.get_domain(currentURL) if currentURL else None
+
+        if currentURL:
+            self.add_to_pending(currentURL)
+            self.queue.append(currentURL)
+
+    def get_domain(self, url):
+        """Récupère le domaine de l'URL."""
+        parsed_url = urlparse(url)
+        return f"{parsed_url.scheme}://{parsed_url.netloc}"
+
+    def is_in_domain(self, url):
+        """Vérifie si une URL appartient au domaine de départ."""
+        return self.get_domain(url) == self.start_domain
 
     def can_fetch(self, url):
         parsed_url = urlparse(url)
@@ -42,14 +56,14 @@ class Crawler:
         return True
 
     def is_valid_url(self, url):
-        parsed_url = urlparse(url)
-        if not parsed_url.path:
+        try:
+            parsed_url = urlparse(url)
+            return all([parsed_url.scheme, parsed_url.netloc])
+        except Exception:
             return False
 
-        clean_path_pattern = re.compile(r"^/wiki(/[a-zA-Z0-9_-]+)?$")
-        return bool(clean_path_pattern.match(parsed_url.path))
-
     def add_to_pending(self, url):
+        """Ajoute une URL à la table pending si elle n'est pas déjà en cours ou terminée."""
         self.db.connect()
         query = """
             INSERT OR IGNORE INTO pending (url, status)
@@ -59,6 +73,7 @@ class Crawler:
         self.db.close()
 
     def is_url_crawled(self, url):
+        """Vérifie si une URL a déjà été explorée."""
         self.db.connect()
         query = "SELECT 1 FROM web_pages WHERE url = ?"
         result = self.db.execute_query(query, (url,))
@@ -66,6 +81,7 @@ class Crawler:
         return len(result) > 0
 
     def crawl_page(self, url):
+        """Explore une page donnée et met à jour la base de données."""
         if not self.can_fetch(url):
             print(f"Accès refusé par robots.txt : {url}")
             return
@@ -92,11 +108,15 @@ class Crawler:
             href = link.get('href')
             absolute_url = urljoin(url, href)
 
-
-            if not self.is_url_crawled(absolute_url) and self.is_valid_url(absolute_url):
+            if (
+                not self.is_url_crawled(absolute_url)
+                and self.is_valid_url(absolute_url)
+                and self.is_in_domain(absolute_url)
+            ):
                 self.add_to_pending(absolute_url)
                 found_links.append(absolute_url)
 
+        # Enregistrer les données de la page
         self.db.connect()
         data = {
             'url': url,
@@ -112,11 +132,13 @@ class Crawler:
         """
         self.db.execute_query(query, data)
 
-        query = "DELETE FROM pending WHERE url = ?"
+        # Marquer l'URL comme terminée
+        query = "UPDATE pending SET status = 'done' WHERE url = ?"
         self.db.execute_query(query, (url,))
         self.db.close()
 
     def fill_queue(self):
+        """Récupère les URLs en attente (statut 'pending') pour le crawling."""
         self.db.connect()
         query = "SELECT url FROM pending WHERE status = 'pending' LIMIT 50"
         result = self.db.execute_query(query)
@@ -126,7 +148,6 @@ class Crawler:
             url = row[0]
             if url not in self.visited and url not in self.queue:
                 self.queue.append(url)
-                self.add_to_pending(url)
 
     def stop_crawling(self, signal, frame):
         print("\nArrêt du crawling...")
@@ -135,11 +156,12 @@ class Crawler:
         sys.exit(0)
 
     def start(self):
+        """Démarre le processus de crawling."""
         signal.signal(signal.SIGINT, self.stop_crawling)
 
         while self.running:
-            if len(self.queue) <= 3:
-                print("La file d'attente est presque vide, remplissage...")
+            if len(self.queue) <= 0:
+                print("La file d'attente est vide, remplissage...")
                 self.fill_queue()
 
             if not self.queue:
@@ -149,12 +171,21 @@ class Crawler:
             url = self.queue.pop(0)
             print(f"Crawling {url}...")
 
+            # Marquer l'URL comme en cours
             self.db.connect()
             update_query = "UPDATE pending SET status = 'crawling' WHERE url = ?"
             self.db.execute_query(update_query, (url,))
             self.db.close()
 
+            # Explorer la page
             self.crawl_page(url)
+
+    def clear_pending(self):
+        """Supprime toutes les entrées de la table pending."""
+        self.db.connect()
+        query = "DELETE FROM pending"
+        self.db.execute_query(query)
+        self.db.close()
 
 
 if __name__ == "__main__":
@@ -162,5 +193,10 @@ if __name__ == "__main__":
     parser.add_argument("--url", type=str, help="L'URL de départ pour le crawling.")
     args = parser.parse_args()
 
-    crawler = Crawler(start_url=args.url)
+    start_url = args.url
+    crawler = Crawler(currentURL=start_url)
+
+    if start_url:
+        crawler.clear_pending()
+
     crawler.start()
