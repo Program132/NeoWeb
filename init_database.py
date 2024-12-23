@@ -31,5 +31,11 @@ def database_config():
         "list_urls": "TEXT",
     }
     db.create_table(table_name, columns)
+    table_name = "page_rank"
+    columns = {
+        "url": "TEXT PRIMARY KEY",
+        "page_rank": "REAL",
+    }
+    db.create_table(table_name, columns)
     db.close()
 database_config()
