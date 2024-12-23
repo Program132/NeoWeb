@@ -19,7 +19,7 @@ def start_php_api():
 
 
 app = Flask(__name__, template_folder="webapp")
-API_URL = "http://localhost:8000/api.php"
+API_URL = "http://localhost:8000/api.php/get_Score"
 
 @app.route('/')
 def index():
@@ -33,7 +33,7 @@ def search():
         return render_template('search.html', results=[], error="Veuillez entrer un terme de recherche.")
 
     try:
-        response = requests.post(API_URL, json={"query": query})
+        response = requests.post(API_URL, json={"query": query, "urls_requested_max": 50})
         response_data = response.json()
 
         if not response_data:
