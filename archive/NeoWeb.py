@@ -9,7 +9,7 @@ occurenceDB = "occurence.json"
 
 @app.route('/')
 def home():
-    return render_template('index.html')
+    return render_template('search.html')
 
 @app.route('/search', methods=['POST'])
 def search():
@@ -36,7 +36,7 @@ def search():
 
         results = sorted(results, key=lambda x: x['score'], reverse=True)
 
-        return render_template('index.html', results=results)
+        return render_template('search.html', results=results)
     except FileNotFoundError: return jsonify({"error": "Le fichier data.json est introuvable."}), 500
     except Exception as e: return jsonify({"error": f"Erreur lors du traitement de la requête : {str(e)}"}), 500
 
