@@ -8,11 +8,10 @@ import datetime
 import sys
 from database import init_db
 
-# Couleurs ANSI pour les logs
 COLORS = {
-    "INFO": "\033[93m",   # Jaune
-    "OK": "\033[92m",     # Vert
-    "ERROR": "\033[91m",  # Rouge
+    "INFO": "\033[93m",
+    "OK": "\033[92m",
+    "ERROR": "\033[91m",
     "RESET": "\033[0m"
 }
 
@@ -22,7 +21,6 @@ def print_log(msg, level="INFO"):
     reset = COLORS["RESET"]
     print(f"{color}[{level.upper()} {now}]{reset} {msg}", file=sys.stdout)
 
-# Interruption propre
 stop_flag = False
 
 RETRY_LIMIT = 5

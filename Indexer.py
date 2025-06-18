@@ -4,11 +4,10 @@ import datetime
 import sys
 from collections import defaultdict
 
-# Couleurs ANSI
 COLORS = {
-    "INFO": "\033[93m",   # Jaune
-    "OK": "\033[92m",     # Vert
-    "ERROR": "\033[91m",  # Rouge
+    "INFO": "\033[93m",
+    "OK": "\033[92m",
+    "ERROR": "\033[91m",
     "RESET": "\033[0m"
 }
 
