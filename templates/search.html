@@ -1,0 +1,419 @@
+<!DOCTYPE html>
+<html lang="fr">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>GAU-Web Search</title>
+    <style>
+        :root {
+            --primary-color: #4285f4;
+            --secondary-color: #34a853;
+            --accent-color: #ea4335;
+            --text-color: #333;
+            --light-gray: #f8f9fa;
+            --gray: #e0e0e0;
+            --background-color: #f8f9fa;
+            --chat-background: #ffffff;
+        }
+
+        .dark-mode {
+            --primary-color: #8ab4f8;
+            --secondary-color: #81c995;
+            --accent-color: #f28b82;
+            --text-color: #e8eaed;
+            --light-gray: #323335;
+            --gray: #5f6368;
+            --background-color: #202124;
+            --chat-background: #2c2d30;
+        }
+
+        body {
+            font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+            padding: 0;
+            margin: 0;
+            background-color: var(--background-color);
+            color: var(--text-color);
+            display: flex;
+            height: 100vh;
+        }
+
+        .container {
+            display: flex;
+            flex: 1;
+        }
+
+        .main-content {
+            flex: 1;
+            padding: 2em;
+            margin-left: 0;
+            transition: margin-left 0.3s;
+        }
+
+        .main-content.shifted {
+            margin-left: 350px;
+        }
+
+        .chat-sidebar {
+            width: 350px;
+            background-color: var(--chat-background);
+            border-right: 1px solid var(--gray);
+            display: flex;
+            flex-direction: column;
+            position: fixed;
+            left: -350px;
+            top: 0;
+            bottom: 0;
+            transition: left 0.3s;
+        }
+
+        .chat-sidebar.visible {
+            left: 0;
+        }
+
+        .chat-header {
+            padding: 1em;
+            background-color: var(--primary-color);
+            color: white;
+            font-size: 1.2em;
+            text-align: center;
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            position: relative;
+        }
+
+        .chat-container {
+            flex: 1;
+            padding: 1em;
+            overflow-y: auto;
+        }
+
+        .chat-message {
+            margin-bottom: 1em;
+            display: flex;
+            flex-wrap: wrap;
+            word-break: break-word;
+        }
+
+        .chat-message.user {
+            justify-content: flex-end;
+        }
+
+        .chat-message.bot {
+            justify-content: flex-start;
+        }
+
+        .message-content {
+            max-width: 70%;
+            padding: 0.75em;
+            border-radius: 18px;
+            background-color: var(--light-gray);
+            word-break: break-word;
+        }
+
+        .chat-message.user .message-content {
+            background-color: var(--primary-color);
+            color: white;
+        }
+
+        .chat-input {
+            display: flex;
+            padding: 1em;
+            border-top: 1px solid var(--gray);
+        }
+
+        .chat-input input[type="text"] {
+            flex: 1;
+            padding: 0.75em;
+            border: 1px solid var(--gray);
+            border-radius: 24px;
+            outline: none;
+            min-width: 100px;
+            max-width: 100%;
+        }
+
+        .chat-input input[type="submit"] {
+            margin-left: 0.5em;
+            padding: 0.75em 1.5em;
+            background-color: var(--primary-color);
+            color: white;
+            border: none;
+            border-radius: 24px;
+            cursor: pointer;
+        }
+
+        header {
+            background-color: var(--chat-background);
+            padding: 1em;
+            box-shadow: 0 2px 5px rgba(0, 0, 0, 0.1);
+            position: sticky;
+            top: 0;
+            z-index: 100;
+        }
+
+        h1 {
+            color: var(--primary-color);
+            text-align: center;
+            margin-bottom: 1em;
+        }
+
+        form {
+            display: flex;
+            margin-bottom: 2em;
+        }
+
+        input[type="text"] {
+            flex: 1;
+            padding: 12px;
+            font-size: 1em;
+            border: 1px solid var(--gray);
+            border-radius: 24px 0 0 24px;
+        }
+
+        input[type="submit"] {
+            padding: 12px 24px;
+            font-size: 1em;
+            background-color: var(--primary-color);
+            color: white;
+            border: none;
+            border-radius: 0 24px 24px 0;
+            cursor: pointer;
+        }
+
+        .result {
+            background-color: var(--chat-background);
+            margin-bottom: 1em;
+            padding: 1em;
+            border-radius: 8px;
+            box-shadow: 0 2px 4px rgba(0, 0, 0, 0.1);
+            width: 100%;
+            box-sizing: border-box;
+        }
+
+        .result a {
+            color: var(--primary-color);
+            text-decoration: none;
+        }
+
+        .result a:hover {
+            text-decoration: underline;
+        }
+
+        .title {
+            font-size: 1.1em;
+            margin-bottom: 0.3em;
+        }
+
+        .url {
+            color: var(--secondary-color);
+            font-size: 0.9em;
+            margin-bottom: 0.3em;
+            display: block;
+            white-space: nowrap;
+            overflow: hidden;
+            text-overflow: ellipsis;
+        }
+
+        .description {
+            color: var(--text-color);
+            font-size: 0.9em;
+            margin-top: 0.5em;
+        }
+
+        .score {
+            font-size: 0.8em;
+            color: var(--gray);
+        }
+
+        .toggle-chat {
+            position: fixed;
+            left: 0;
+            top: 10px;
+            background-color: var(--primary-color);
+            color: white;
+            border: none;
+            border-radius: 0 4px 4px 0;
+            padding: 10px;
+            cursor: pointer;
+            z-index: 1000;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            width: 30px;
+            height: 50px;
+        }
+
+        .toggle-chat::after {
+            content: "";
+            display: block;
+            width: 0;
+            height: 0;
+            border-top: 10px solid transparent;
+            border-bottom: 10px solid transparent;
+            border-left: 15px solid white;
+        }
+
+        .toggle-chat.visible::after {
+            border-left: none;
+            border-right: 15px solid white;
+        }
+
+        .model-selector {
+            display: flex;
+            justify-content: center;
+            margin-bottom: 1em;
+        }
+
+        .model-selector button {
+            padding: 0.5em 1em;
+            margin: 0 0.5em;
+            border: none;
+            border-radius: 4px;
+            background-color: var(--gray);
+            cursor: pointer;
+        }
+
+        .model-selector button.active {
+            background-color: var(--primary-color);
+            color: white;
+        }
+
+        .toggle-dark-mode {
+            position: fixed;
+            top: 10px;
+            right: 10px;
+            background: var(--primary-color);
+            border: none;
+            color: white;
+            cursor: pointer;
+            font-size: 1.2em;
+            padding: 0.5em;
+            border-radius: 50%;
+            width: 40px;
+            height: 40px;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            z-index: 1000;
+        }
+    </style>
+</head>
+<body class="dark-mode">
+    <div class="container">
+        <div class="main-content" id="main-content">
+            <header>
+                <h1>GAU-Web Search</h1>
+                <form action="/" method="get">
+                    <input type="text" name="q" placeholder="Rechercher..." value="{{ query or '' }}">
+                    <input type="submit" value="Rechercher">
+                </form>
+            </header>
+            <div>
+                {% if query %}
+                    <h2>Résultats pour "{{ query }}"</h2>
+                    {% if results %}
+                        {% for r in results[:20] %}
+                            <div class="result">
+                                <div class="title"><a href="{{ r.url }}" target="_blank">{% for word in query.split() %}{% if word.lower() in r.title.lower() %}<strong>{{ word }}</strong>{% else %}{{ word }}{% endif %}{% endfor %}</a></div>
+                                <div class="url">{{ r.url }}</div>
+                                <div class="description">{{ r.description[:200] }}...</div>
+                                <div class="score">Score: {{ '%.4f'|format(r.score) }}</div>
+                            </div>
+                        {% endfor %}
+                    {% else %}
+                        <p>Aucun résultat trouvé.</p>
+                    {% endif %}
+                {% endif %}
+            </div>
+        </div>
+        <button class="toggle-chat" id="toggle-chat"></button>
+        <div class="chat-sidebar" id="chat-sidebar">
+            <div class="chat-header">
+                <span>Chatbot</span>
+            </div>
+            <div class="model-selector">
+                <button class="model-button active" data-model="general">Modèle Général</button>
+                <button class="model-button" data-model="code">Modèle de Code</button>
+            </div>
+            <div class="chat-container" id="chat-container">
+                <!-- Les messages du chatbot seront affichés ici -->
+            </div>
+            <form class="chat-input" id="chat-form">
+                <input type="text" name="message" placeholder="Écrivez votre message..." required>
+                <input type="submit" value="Envoyer">
+                <input type="hidden" name="model_type" value="general" id="model-type">
+                <input type="hidden" name="action" value="chat">
+            </form>
+        </div>
+    </div>
+    <button class="toggle-dark-mode" id="toggle-dark-mode">☀️</button>
+    <script>
+        document.addEventListener("DOMContentLoaded", function() {
+            const chatForm = document.getElementById("chat-form");
+            const chatContainer = document.getElementById("chat-container");
+            const toggleChatButton = document.getElementById("toggle-chat");
+            const chatSidebar = document.getElementById("chat-sidebar");
+            const mainContent = document.getElementById("main-content");
+            const modelButtons = document.querySelectorAll(".model-button");
+            const modelTypeInput = document.getElementById("model-type");
+            const toggleDarkModeButton = document.getElementById("toggle-dark-mode");
+
+            let conversationHistory = [];
+
+            toggleChatButton.addEventListener("click", function() {
+                chatSidebar.classList.toggle("visible");
+                mainContent.classList.toggle("shifted");
+                toggleChatButton.classList.toggle("visible");
+            });
+
+            toggleDarkModeButton.addEventListener("click", function() {
+                document.body.classList.toggle("dark-mode");
+                toggleDarkModeButton.textContent = document.body.classList.contains("dark-mode") ? "☀️" : "🌙";
+            });
+
+            modelButtons.forEach(button => {
+                button.addEventListener("click", function() {
+                    modelButtons.forEach(btn => btn.classList.remove("active"));
+                    this.classList.add("active");
+                    modelTypeInput.value = this.getAttribute("data-model");
+                });
+            });
+
+            chatForm.addEventListener("submit", function(event) {
+                event.preventDefault();
+                const formData = new FormData(chatForm);
+                const message = formData.get("message");
+
+                // Ajouter le message de l'utilisateur au conteneur de chat
+                const userMessageDiv = document.createElement("div");
+                userMessageDiv.className = "chat-message user";
+                userMessageDiv.innerHTML = `<div class="message-content">${message}</div>`;
+                chatContainer.appendChild(userMessageDiv);
+
+                // Ajouter le message à l'historique de la conversation
+                conversationHistory.push({ role: "user", content: message });
+
+                // Envoyer la requête au serveur
+                fetch("/", {
+                    method: "POST",
+                    body: formData
+                })
+                .then(response => response.json())
+                .then(data => {
+                    // Ajouter la réponse du bot au conteneur de chat
+                    const botMessageDiv = document.createElement("div");
+                    botMessageDiv.className = "chat-message bot";
+                    botMessageDiv.innerHTML = `<div class="message-content">${data.response}</div>`;
+                    chatContainer.appendChild(botMessageDiv);
+                    chatContainer.scrollTop = chatContainer.scrollHeight;
+
+                    // Ajouter la réponse à l'historique de la conversation
+                    conversationHistory.push({ role: "assistant", content: data.response });
+                });
+
+                chatForm.reset();
+            });
+        });
+    </script>
+</body>
+</html>

@@ -1,202 +1,135 @@
-import json
-import argparse
-import signal
-import sys
-from Database import DatabaseManager
 import requests
 from bs4 import BeautifulSoup
 from urllib.parse import urljoin, urlparse
-from urllib.robotparser import RobotFileParser
-from threading import Lock
+import time
+import sqlite3
+import signal
+import datetime
+import sys
+from database import init_db
 
-class Crawler:
-    def __init__(self, currentURL=None, database="neoweb.db"):
-        self.db = DatabaseManager(database)
-        self.visited = set()
-        self.queue = []
-        self.data = []
-        self.lock = Lock()
-        self.robot_parsers = {}
-        self.running = True
+# Couleurs ANSI pour les logs
+COLORS = {
+    "INFO": "\033[93m",   # Jaune
+    "OK": "\033[92m",     # Vert
+    "ERROR": "\033[91m",  # Rouge
+    "RESET": "\033[0m"
+}
 
-        # Définir le domaine de départ
-        self.start_domain = self.get_domain(currentURL) if currentURL else None
+def print_log(msg, level="INFO"):
+    now = datetime.datetime.now().strftime("%H:%M:%S")
+    color = COLORS.get(level.upper(), COLORS["INFO"])
+    reset = COLORS["RESET"]
+    print(f"{color}[{level.upper()} {now}]{reset} {msg}", file=sys.stdout)
 
-        if currentURL:
-            self.add_to_pending(currentURL)
-            self.queue.append(currentURL)
+# Interruption propre
+stop_flag = False
 
-    def get_domain(self, url):
-        """Récupère le domaine de l'URL."""
-        parsed_url = urlparse(url)
-        return f"{parsed_url.scheme}://{parsed_url.netloc}"
+RETRY_LIMIT = 5
+RETRY_DELAY = 0.3
 
-    def is_in_domain(self, url):
-        """Vérifie si une URL appartient au domaine de départ."""
-        return self.get_domain(url) == self.start_domain
+def safe_execute(cursor, query, params=()):
+    for i in range(RETRY_LIMIT):
+        try:
+            cursor.execute(query, params)
+            return
+        except sqlite3.OperationalError as e:
+            if "locked" in str(e).lower():
+                print_log(f"Database locked, retrying ({i+1}/{RETRY_LIMIT})...", "ERROR")
+                time.sleep(RETRY_DELAY * (i + 1))
+            else:
+                raise
+    raise sqlite3.OperationalError("Failed after retries: " + query)
 
-    def can_fetch(self, url):
-        parsed_url = urlparse(url)
-        base_url = f"{parsed_url.scheme}://{parsed_url.netloc}"
-
-        if base_url not in self.robot_parsers:
-            robots_url = urljoin(base_url, "/robots.txt")
-            rp = RobotFileParser()
-            try:
-                rp.set_url(robots_url)
-                rp.read()
-            except Exception as e:
-                print(f"Erreur lors du chargement de robots.txt pour {base_url}: {e}")
-                rp = None
-            self.robot_parsers[base_url] = rp
-
-        rp = self.robot_parsers.get(base_url)
-        if rp:
-            return rp.can_fetch("*", url)
+def is_allowed(url):
+    parsed = urlparse(url)
+    robots_url = f"{parsed.scheme}://{parsed.netloc}/robots.txt"
+    try:
+        resp = requests.get(robots_url, timeout=5)
+        if resp.status_code != 200:
+            return True
+        disallow = [line.split(': ')[1] for line in resp.text.splitlines()
+                    if line.startswith('Disallow')]
+        for rule in disallow:
+            if parsed.path.startswith(rule):
+                return False
+    except:
         return True
+    return True
 
-    def is_valid_url(self, url):
+def is_valid_url(url):
+    parsed = urlparse(url)
+    if parsed.scheme not in {"http", "https"}:
+        return False
+    if any(x in parsed.path.lower() for x in [".pdf", ".jpg", ".jpeg", ".png", ".zip", ".exe", ".svg"]):
+        return False
+    if parsed.query or parsed.fragment:
+        return False
+    return True
+
+def crawl(seed_url=None):
+    global stop_flag
+    init_db()
+    conn = sqlite3.connect('data.db')
+    cur = conn.cursor()
+
+    if seed_url:
+        cur.execute("INSERT OR IGNORE INTO queue (url) VALUES (?)", (seed_url,))
+        conn.commit()
+
+    visited = set()
+
+    def stop_handler(sig, frame):
+        global stop_flag
+        print_log("Shutdown requested. Stopping after current URL...", "INFO")
+        stop_flag = True
+
+    signal.signal(signal.SIGINT, stop_handler)
+    signal.signal(signal.SIGTERM, stop_handler)
+
+    while not stop_flag:
+        row = cur.execute("SELECT url FROM queue LIMIT 1").fetchone()
+        if not row:
+            print_log("Queue is empty. Waiting for new URLs...", "INFO")
+            time.sleep(10)
+            continue
+
+        url = row[0]
+        safe_execute(cur, "DELETE FROM queue WHERE url=?", (url,))
+        conn.commit()
+
+        if url in visited or not is_allowed(url):
+            continue
+
         try:
-            parsed_url = urlparse(url)
-            return all([parsed_url.scheme, parsed_url.netloc])
-        except Exception:
-            return False
+            print_log(f"Crawling: {url}", "INFO")
+            resp = requests.get(url, timeout=5)
+            soup = BeautifulSoup(resp.text, 'html.parser')
+            title = soup.title.string.strip() if soup.title else ''
+            text = ' '.join(p.get_text() for p in soup.find_all('p'))
 
-    def add_to_pending(self, url):
-        """Ajoute une URL à la table pending si elle n'est pas déjà en cours ou terminée."""
-        self.db.connect()
-        query = """
-            INSERT OR IGNORE INTO pending (url, status)
-            VALUES (?, 'pending')
-        """
-        self.db.execute_query(query, (url,))
-        self.db.close()
+            raw_links = [a['href'] for a in soup.find_all('a', href=True)]
+            links = []
+            for raw in raw_links:
+                absolute = urljoin(url, raw)
+                if is_valid_url(absolute):
+                    links.append(absolute)
+                    safe_execute(cur, "INSERT OR IGNORE INTO queue (url) VALUES (?)", (absolute,))
 
-    def is_url_crawled(self, url):
-        """Vérifie si une URL a déjà été explorée."""
-        self.db.connect()
-        query = "SELECT 1 FROM web_pages WHERE url = ?"
-        result = self.db.execute_query(query, (url,))
-        self.db.close()
-        return len(result) > 0
+            safe_execute(cur, "REPLACE INTO pages (url, title, content, links) VALUES (?, ?, ?, ?)",
+                         (url, title, text, '\n'.join(links)))
+            conn.commit()
 
-    def crawl_page(self, url):
-        """Explore une page donnée et met à jour la base de données."""
-        if not self.can_fetch(url):
-            print(f"Accès refusé par robots.txt : {url}")
-            return
+            visited.add(url)
+            print_log(f"Crawled: {url} (visited: {len(visited)})", "OK")
+            time.sleep(0.1)
 
-        try:
-            response = requests.get(url, timeout=5)
-            if response.status_code != 200:
-                print(f"Erreur HTTP {response.status_code} pour {url}")
-                return
-        except requests.RequestException as e:
-            print(f"Erreur lors de la requête {url}: {e}")
-            return
+        except Exception as e:
+            print_log(f"Failed to crawl {url}: {e}", "ERROR")
+            continue
 
-        soup = BeautifulSoup(response.text, 'html.parser')
-
-        title = soup.find('title').text if soup.find('title') else "No Title"
-        h1_tags = [h1.text for h1 in soup.find_all('h1')]
-        metadata = {meta.get('name'): meta.get('content') for meta in soup.find_all('meta', attrs={'name': True})}
-        text = soup.get_text()
-
-        links = soup.find_all('a', href=True)
-        found_links = []
-        for link in links:
-            href = link.get('href')
-            absolute_url = urljoin(url, href)
-
-            if (
-                not self.is_url_crawled(absolute_url)
-                and self.is_valid_url(absolute_url)
-                and self.is_in_domain(absolute_url)
-            ):
-                self.add_to_pending(absolute_url)
-                found_links.append(absolute_url)
-
-        # Enregistrer les données de la page
-        self.db.connect()
-        data = {
-            'url': url,
-            'title': title,
-            'subtitles': ', '.join(h1_tags),
-            'metadata': str(metadata),
-            'text': text.strip(),
-            'links': json.dumps(found_links)
-        }
-        query = """
-        INSERT OR IGNORE INTO web_pages (url, title, subtitles, metadata, text, links)
-        VALUES (:url, :title, :subtitles, :metadata, :text, :links)
-        """
-        self.db.execute_query(query, data)
-
-        # Marquer l'URL comme terminée
-        query = "UPDATE pending SET status = 'done' WHERE url = ?"
-        self.db.execute_query(query, (url,))
-        self.db.close()
-
-    def fill_queue(self):
-        """Récupère les URLs en attente (statut 'pending') pour le crawling."""
-        self.db.connect()
-        query = "SELECT url FROM pending WHERE status = 'pending' LIMIT 50"
-        result = self.db.execute_query(query)
-        self.db.close()
-
-        for row in result:
-            url = row[0]
-            if url not in self.visited and url not in self.queue:
-                self.queue.append(url)
-
-    def stop_crawling(self, signal, frame):
-        print("\nArrêt du crawling...")
-        self.running = False
-        self.db.close()
-        sys.exit(0)
-
-    def start(self):
-        """Démarre le processus de crawling."""
-        signal.signal(signal.SIGINT, self.stop_crawling)
-
-        while self.running:
-            if len(self.queue) <= 0:
-                print("La file d'attente est vide, remplissage...")
-                self.fill_queue()
-
-            if not self.queue:
-                print("Aucune URL à explorer.")
-                break
-
-            url = self.queue.pop(0)
-            print(f"Crawling {url}...")
-
-            # Marquer l'URL comme en cours
-            self.db.connect()
-            update_query = "UPDATE pending SET status = 'crawling' WHERE url = ?"
-            self.db.execute_query(update_query, (url,))
-            self.db.close()
-
-            # Explorer la page
-            self.crawl_page(url)
-
-    def clear_pending(self):
-        """Supprime toutes les entrées de la table pending."""
-        self.db.connect()
-        query = "DELETE FROM pending"
-        self.db.execute_query(query)
-        self.db.close()
-
+    conn.close()
+    print_log("Crawler stopped cleanly.", "OK")
 
 if __name__ == "__main__":
-    parser = argparse.ArgumentParser(description="Lance un crawler pour explorer les pages web.")
-    parser.add_argument("--url", type=str, help="L'URL de départ pour le crawling.")
-    args = parser.parse_args()
-
-    start_url = args.url
-    crawler = Crawler(currentURL=start_url)
-
-    if start_url:
-        crawler.clear_pending()
-
-    crawler.start()
+    crawl("https://franceinfo.fr")
